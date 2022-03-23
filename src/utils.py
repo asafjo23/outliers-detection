@@ -4,7 +4,7 @@ from pandas import DataFrame, Series
 from torch import Tensor, sum, LongTensor, FloatTensor, histc
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import namedtuple
-from typing import Tuple
+from typing import Tuple, Mapping
 from torch.nn import Parameter
 from src.data_set import RatingsDataset
 from src.model import MF
@@ -130,16 +130,11 @@ def l2_regularize(array) -> Tensor:
     return loss
 
 
-def mine_outliers(model: MF, data_converter: DataConverter):
+def mine_outliers(model: MF, data_converter: DataConverter) -> Mapping:
     optimized_user_embeddings = np.array(model.user_factors.weight.data)
     c_similarity = cosine_similarity(optimized_user_embeddings)
     similarities = c_similarity.sum(axis=1)
     c_similarity_scores = {
         data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)
     }
-    dists = dict(sorted(c_similarity_scores.items(), key=lambda item: item[1]))
-
-    items_group_by_users = data_converter.original_df.groupby("user_id")
-    for user_id, item_id in dists.items():
-        number_of_items = len(items_group_by_users.get_group(user_id))
-        print(f"user: {user_id}, dist: {item_id}, #items: {number_of_items}")
+    return c_similarity_scores
