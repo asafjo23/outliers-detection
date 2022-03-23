@@ -1,0 +1,12 @@
+CODE_DIRS=src
+
+lint:
+	flake8 ${CODE_DIRS} --max-line-length=100
+	mypy --ignore-missing-imports ${CODE_DIRS}
+	black -l 100 --check ${CODE_DIRS}
+
+format:
+	black -l 100 ${CODE_DIRS}
+
+format-and-lint:
+	format lint
