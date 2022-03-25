@@ -27,14 +27,16 @@ class ProcColumn:
 
 class DataProcessor:
     def __init__(self, original_df: DataFrame):
+        self.min_rating = min(original_df.rating.values)
+        self.max_rating = max(original_df.rating.values)
+
         (
             self.ratings_by_user,
             self.histograms_by_users,
             self.item_to_index_rating,
-        ) = DataProcessor.data_process(original_df=original_df)
+        ) = self.data_process(original_df=original_df)
 
-    @staticmethod
-    def data_process(original_df: DataFrame) -> Tuple:
+    def data_process(self, original_df: DataFrame) -> Tuple:
         """
         This function creates the original ratings embedding for each user and saves mapping
         from index to item place in the rating.
@@ -48,7 +50,9 @@ class DataProcessor:
         for user_id, group in items_grouped_by_users:
             ratings_as_tensor = Tensor(group.rating.values)
             ratings_by_users[user_id] = Parameter(ratings_as_tensor, requires_grad=False)
-            histograms_by_users[user_id] = histc(ratings_as_tensor, bins=9, min=1, max=9)
+            histograms_by_users[user_id] = histc(
+                ratings_as_tensor, bins=self.max_rating, min=self.min_rating, max=self.max_rating
+            )
             item_to_index_rating[user_id] = {
                 row.item_id: i for i, row in enumerate(group.itertuples())
             }
@@ -60,8 +64,11 @@ class DataConverter:
     def __init__(self, original_df: DataFrame, n_random_users: int, n_ratings_per_random_user: int):
         assert list(original_df.columns) == ["user_id", "item_id", "rating"]
         original_data = original_df.copy()
+        self.min_rating = min(original_df.rating.values)
+        self.max_rating = max(original_df.rating.values)
+
         if n_random_users > 0:
-            random_users = DataConverter.create_random_users(
+            random_users = self.create_random_users(
                 original_df=original_data,
                 number_of_users_to_add=n_random_users,
                 n_ratings_per_random_user=n_ratings_per_random_user,
@@ -90,9 +97,8 @@ class DataConverter:
     def get_encoded_item_ids(self) -> np.ndarray:
         return self._item_original_id_to_encoded_id.encoded_col
 
-    @staticmethod
     def create_random_users(
-        original_df: DataFrame, number_of_users_to_add: int, n_ratings_per_random_user: int
+        self, original_df: DataFrame, number_of_users_to_add: int, n_ratings_per_random_user: int
     ) -> DataFrame:
         assert list(original_df.columns) == ["user_id", "item_id", "rating"]
         Row = namedtuple("Row", ["user_id", "item_id", "rating"])
@@ -101,7 +107,7 @@ class DataConverter:
         for i in range(original_num_of_users, original_num_of_users + number_of_users_to_add):
             for _ in range(n_ratings_per_random_user):
                 random_song_id = np.random.choice(original_df.item_id.values)
-                random_rating = np.random.randint(1, 9)
+                random_rating = np.random.randint(self.min_rating, self.max_rating)
                 random_data.append(
                     Row(
                         user_id=f"random_guy_{i}",

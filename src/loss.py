@@ -13,7 +13,13 @@ class MiningOutliersLoss(_Loss):
         super(MiningOutliersLoss, self).__init__()
         self._data_converter = data_converter
         self._data_processor = data_processor
-        self._gauss_histo = GaussianHistogram(bins=9, min=1, max=9, sigma=1.5)
+
+        self.min_rating = data_processor.min_rating
+        self.max_rating = data_processor.max_rating
+
+        self._gauss_histo = GaussianHistogram(
+            bins=self.max_rating, min=self.min_rating, max=self.max_rating, sigma=1.5
+        )
 
     def mse_loss(
         self,
@@ -43,13 +49,13 @@ class MiningOutliersLoss(_Loss):
             original_histogram = clone(self._data_processor.histograms_by_users[user_id])
             pdf_original_histogram = self._gauss_histo(original_histogram)
 
-            original_rating_index = int(clip(original_rating, min=0, max=8).item())
+            original_rating_index = self.to_index(rating=original_rating)
             original_mass = self._calc_histogram_mass(pdf_original_histogram, original_rating_index)
 
             original_histogram[original_rating_index] -= 1
-            predicted_round_rating_clipped = clip(round(predicted_rating), min=0, max=8)
+            predicted_round_rating = round(predicted_rating)
 
-            predicted_rating_index = int(predicted_round_rating_clipped)
+            predicted_rating_index = self.to_index(rating=predicted_round_rating)
             original_histogram[predicted_rating_index] += 1
 
             pdf_predicted_histogram = self._gauss_histo(original_histogram)
@@ -61,6 +67,10 @@ class MiningOutliersLoss(_Loss):
 
         histogram_loss.requires_grad = True
         return histogram_loss
+
+    def to_index(self, rating: Tensor) -> int:
+        min_index = max(self.min_rating - 1, 0)
+        return int(clip(rating, min=min_index, max=self.max_rating - 1).item())
 
     @staticmethod
     def _calc_histogram_mass(histogram: Tensor, end: int) -> Tensor:
