@@ -8,9 +8,11 @@ from src.model import MF
 from src.runner import Runner
 from src.utils import create_dataset, mine_outliers, DataConverter, DataProcessor
 
-DF_PATH = f"{DATA_DIR}" \
-          f"/DEAM/annotations/annotations per each rater/" \
-          f"song_level/static_annotations_songs_1_2000.csv"
+DF_PATH = (
+    f"{DATA_DIR}"
+    f"/DEAM/annotations/annotations per each rater/"
+    f"song_level/static_annotations_songs_1_2000.csv"
+)
 
 
 if __name__ == "__main__":

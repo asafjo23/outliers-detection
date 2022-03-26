@@ -49,7 +49,7 @@ class Runner:
                 loss.backward()
                 self._optimizer.step()
 
-                total_epoch_loss += loss.item() / len(tepoch)
-                tepoch.set_postfix(train_loss=loss.item() / len(tepoch))
+                total_epoch_loss += loss.item() / len(users)
+                tepoch.set_postfix(train_loss=loss.item() / len(users))
 
         return total_epoch_loss
