@@ -152,4 +152,7 @@ cython_debug/
 .idea/
 .DS_Store
 data/
-.src/runs
+src/runs
+examples/runs
+examples/Digraph.gv
+examples/Digraph.gv.pdf

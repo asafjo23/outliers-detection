@@ -1,6 +1,6 @@
 from pandas import read_csv
 from torch.optim import SGD
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch import randperm
 from config import DATA_DIR
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     train_load = DataLoader(train_set, batch_size=1000, shuffle=True)
     users, items, ratings = select_n_random(train_set)
 
-    epochs = 30
+    epochs = 50
     with SummaryWriter("runs/DEAM_experiment_1") as writer:
         writer.add_graph(model, (users, items))
 
