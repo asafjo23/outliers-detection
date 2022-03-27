@@ -1,7 +1,7 @@
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
-from torch import Tensor, clone, clip, round, abs, sub, sum
+from torch import Tensor, clone, clip, round, abs, sub, sum, tensor
 from torch.nn import Embedding
 from torch.nn.modules.loss import _Loss
 
@@ -43,7 +43,7 @@ class MiningOutliersLoss(_Loss):
         writer: SummaryWriter,
         epoch: int,
     ) -> Tensor:
-        histogram_loss = Tensor([0.0])
+        histogram_loss = tensor(0.0)
         for user, item, original_rating, predicted_rating in zip(
             users, items, original_ratings, predicted_ratings
         ):
@@ -62,11 +62,11 @@ class MiningOutliersLoss(_Loss):
             original_histogram[predicted_rating_index] += 1
 
             pdf_predicted_histogram = self._gauss_histo(original_histogram)
-            predicted_mass = MiningOutliersLoss._calc_histogram_mass(
+            predicted_mass = self._calc_histogram_mass(
                 pdf_predicted_histogram, predicted_rating_index
             )
 
-            histogram_loss += abs(sub(original_mass, predicted_mass))
+            histogram_loss += abs(sub(original_mass, predicted_mass)).squeeze()
 
             writer.add_scalars(
                 f"Loss/train/histogram_mass/{user_id}",

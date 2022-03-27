@@ -5,6 +5,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from src.loss import MiningOutliersLoss
 from src.model import MF
+from torchviz import make_dot
 
 
 class Runner:
@@ -48,7 +49,10 @@ class Runner:
 
                 writer.add_scalar("Loss/train/mse_loss", mse_loss / len(users), epoch)
                 writer.add_scalar("Loss/train/histogram_loss", histogram_loss / len(users), epoch)
-                loss = mse_loss + histogram_loss
+                loss = histogram_loss + mse_loss
+
+                if total_epoch_loss == 0:
+                    make_dot(loss).view()
 
                 self._optimizer.zero_grad()
                 loss.backward()

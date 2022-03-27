@@ -4,3 +4,4 @@ numpy==1.22.3
 scikit-learn==1.0.2
 tqdm==4.63.0
 tensorboardX==2.5
+torchviz==0.0.2
