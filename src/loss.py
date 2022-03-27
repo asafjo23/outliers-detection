@@ -46,6 +46,13 @@ class MiningOutliersLoss(_Loss):
             original_histogram = clone(self._data_processor.histograms_by_users[user_id])
             pdf_original_histogram = self._gauss_histo(original_histogram)
 
+            if epoch == 0:
+                writer.add_histogram(
+                    tag=f"{user_id}/original_histogram",
+                    values=original_histogram,
+                    global_step=epoch,
+                )
+
             original_rating_index = self.to_index(rating=original_rating)
             original_mass = self._calc_histogram_mass(pdf_original_histogram, original_rating_index)
 
@@ -69,6 +76,12 @@ class MiningOutliersLoss(_Loss):
                     "predicted_mass": predicted_mass.item(),
                 },
                 epoch,
+            )
+
+            writer.add_histogram(
+                tag=f"{user_id}/predicted_histogram",
+                values=original_histogram,
+                global_step=epoch,
             )
 
         histogram_loss.requires_grad = True

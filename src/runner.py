@@ -9,16 +9,12 @@ from torchviz import make_dot
 
 
 class Runner:
-    def __init__(
-        self,
-        model: MF,
-        criterion: MiningOutliersLoss,
-        optimizer: Optimizer,
-    ):
+    def __init__(self, model: MF, criterion: MiningOutliersLoss, optimizer: Optimizer, epochs: int):
         self._model = model
         self._criterion = criterion
         self._optimizer = optimizer
         self._plot_computational_graph = True
+        self._epochs = epochs
 
     def train(self, train_loader: DataLoader, epoch: int, writer: SummaryWriter) -> float:
         self._model.train()
@@ -48,7 +44,8 @@ class Runner:
 
                 writer.add_scalar("Loss/train/mse_loss", mse_loss / len(users), epoch)
                 writer.add_scalar("Loss/train/histogram_loss", histogram_loss / len(users), epoch)
-                loss = histogram_loss + mse_loss
+
+                loss = histogram_loss
 
                 if self._plot_computational_graph:
                     make_dot(loss).view()
@@ -56,6 +53,13 @@ class Runner:
                 self._optimizer.zero_grad()
                 loss.backward()
                 self._optimizer.step()
+
+                if epoch >= self._epochs - 10:
+                    writer.add_histogram(
+                        tag="user_factors_gradients",
+                        values=self._model.user_factors.weight.grad,
+                        global_step=epoch,
+                    )
 
                 total_epoch_loss += loss.item() / len(users)
                 tepoch.set_postfix(train_loss=loss.item() / len(users))

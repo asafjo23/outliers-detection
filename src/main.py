@@ -46,6 +46,7 @@ if __name__ == "__main__":
         model=model,
         criterion=criterion,
         optimizer=optimizer,
+        epochs=1
     )
 
     train_set = create_dataset(data_converter=data_converter)
@@ -53,7 +54,7 @@ if __name__ == "__main__":
     users, items, ratings = select_n_random(train_set)
 
     epochs = 50
-    with SummaryWriter("runs/DEAM_experiment_1") as writer:
+    with SummaryWriter("runs/dev") as writer:
         writer.add_graph(model, (users, items))
 
         for epoch in range(epochs):
