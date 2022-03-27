@@ -11,16 +11,16 @@ class RatingsDataset(Dataset):
         items_tensor: LongTensor,
         ratings_tensor: FloatTensor,
     ):
-        self._users_tensor = users_tensor
-        self._items_tensor = items_tensor
-        self._ratings_tensor = ratings_tensor
+        self.users_tensor = users_tensor
+        self.items_tensor = items_tensor
+        self.ratings_tensor = ratings_tensor
 
     def __getitem__(self, index: int) -> Tuple:
         return (
-            self._users_tensor[index],
-            self._items_tensor[index],
-            self._ratings_tensor[index],
+            self.users_tensor[index],
+            self.items_tensor[index],
+            self.ratings_tensor[index],
         )
 
     def __len__(self) -> int:
-        return self._users_tensor.size(0)
+        return self.users_tensor.size(0)

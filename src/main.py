@@ -1,8 +1,10 @@
 from pandas import read_csv
 from torch.optim import SGD
-from torch.utils.data import DataLoader
-
+from torch.utils.data import DataLoader, Dataset
+from tensorboardX import SummaryWriter
+from torch import randperm
 from config import DATA_DIR
+from src.data_set import RatingsDataset
 from src.loss import MiningOutliersLoss
 from src.model import MF
 from src.runner import Runner
@@ -13,6 +15,14 @@ DF_PATH = (
     f"/DEAM/annotations/annotations per each rater/"
     f"song_level/static_annotations_songs_1_2000.csv"
 )
+
+
+def select_n_random(trainset: RatingsDataset):
+    """
+    Selects n random datapoints and their corresponding labels from a dataset
+    """
+    perm = randperm(len(trainset))
+    return trainset[perm][:100]
 
 
 if __name__ == "__main__":
@@ -40,9 +50,15 @@ if __name__ == "__main__":
 
     train_set = create_dataset(data_converter=data_converter)
     train_load = DataLoader(train_set, batch_size=1000, shuffle=True)
-    epochs = 75
-    for epoch in range(epochs):
-        epoch_loss = runner.train(train_loader=train_load)
-        print(f"epoch={epoch + 1}, loss={epoch_loss}")
+    users, items, ratings = select_n_random(train_set)
 
+    epochs = 30
+    with SummaryWriter("runs/DEAM_experiment_1") as writer:
+        writer.add_graph(model, (users, items))
+
+        for epoch in range(epochs):
+            epoch_loss = runner.train(train_loader=train_load, epoch=epoch, writer=writer)
+            print(f"epoch={epoch + 1}, loss={epoch_loss}")
+
+    writer.close()
     mine_outliers(model=model, data_converter=data_converter)
