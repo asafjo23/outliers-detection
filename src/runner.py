@@ -18,6 +18,7 @@ class Runner:
         self._model = model
         self._criterion = criterion
         self._optimizer = optimizer
+        self._plot_computational_graph = True
 
     def train(self, train_loader: DataLoader, epoch: int, writer: SummaryWriter) -> float:
         self._model.train()
@@ -32,8 +33,6 @@ class Runner:
                 )
 
                 mse_loss = self._criterion.mse_loss(
-                    user_factors=self._model.user_factors,
-                    item_factors=self._model.item_factors,
                     original_ratings=original_ratings,
                     predicted_ratings=predicted_ratings,
                 )
@@ -51,7 +50,7 @@ class Runner:
                 writer.add_scalar("Loss/train/histogram_loss", histogram_loss / len(users), epoch)
                 loss = histogram_loss + mse_loss
 
-                if total_epoch_loss == 0:
+                if self._plot_computational_graph:
                     make_dot(loss).view()
 
                 self._optimizer.zero_grad()
@@ -60,6 +59,7 @@ class Runner:
 
                 total_epoch_loss += loss.item() / len(users)
                 tepoch.set_postfix(train_loss=loss.item() / len(users))
+                self._plot_computational_graph = False
 
         writer.add_scalar("Loss/train", total_epoch_loss, epoch)
         return total_epoch_loss

@@ -154,5 +154,3 @@ cython_debug/
 data/
 src/runs
 examples/runs
-examples/Digraph.gv
-examples/Digraph.gv.pdf

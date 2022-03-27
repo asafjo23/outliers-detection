@@ -132,11 +132,6 @@ def create_dataset(data_converter: DataConverter):
     )
 
 
-def l2_regularize(array) -> Tensor:
-    loss = sum(array**2.0)
-    return loss
-
-
 def mine_outliers(model: MF, data_converter: DataConverter) -> Mapping:
     optimized_user_embeddings = np.array(model.user_factors.weight.data)
     c_similarity = cosine_similarity(optimized_user_embeddings)

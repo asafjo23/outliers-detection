@@ -2,11 +2,10 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
 from torch import Tensor, clone, clip, round, abs, sub, sum, tensor
-from torch.nn import Embedding
 from torch.nn.modules.loss import _Loss
 
 from src.model import GaussianHistogram
-from src.utils import l2_regularize, DataConverter, DataProcessor
+from src.utils import DataConverter, DataProcessor
 
 
 class MiningOutliersLoss(_Loss):
@@ -24,15 +23,10 @@ class MiningOutliersLoss(_Loss):
 
     def mse_loss(
         self,
-        user_factors: Embedding,
-        item_factors: Embedding,
         original_ratings: Tensor,
         predicted_ratings: Tensor,
     ) -> Tensor:
-        mse_loss = F.mse_loss(original_ratings, predicted_ratings)
-        mse_loss += l2_regularize(user_factors.weight) * 1e-6
-        mse_loss += l2_regularize(item_factors.weight) * 1e-6
-        return mse_loss
+        return F.mse_loss(original_ratings, predicted_ratings)
 
     def histogram_loss(
         self,
