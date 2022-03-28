@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
+from scipy.sparse import csr_matrix
 from torch import Tensor, sum, LongTensor, FloatTensor, histc
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import namedtuple
@@ -131,14 +132,36 @@ def create_dataset(data_converter: DataConverter):
     )
 
 
-def l2_regularize(array) -> Tensor:
-    loss = sum(array**2.0)
-    return loss
-
-
 def mine_outliers(model: MF, data_converter: DataConverter) -> Mapping:
     optimized_user_embeddings = np.array(model.user_factors.weight.data)
     c_similarity = cosine_similarity(optimized_user_embeddings)
+    similarities = c_similarity.sum(axis=1)
+    c_similarity_scores = {
+        data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)
+    }
+    return c_similarity_scores
+
+
+def classical_outliers_mining(data_converter: DataConverter) -> Mapping:
+    """
+    This function tries to identify who the outliers are by using cosine similarities between all
+    users ratings vectors.
+    :return mapping of outliers to score:
+    """
+    sparse_matrix = csr_matrix(
+        (data_converter.n_users, data_converter.n_item), dtype=np.float64
+    ).toarray()
+    items_group_by_users = data_converter.encoded_df.groupby("user_id")
+
+    for key, group in items_group_by_users:
+        total_sum = sum(group.rating.values)
+        non_zeros = len(group.rating.values)
+        for row in group.itertuples():
+            sparse_matrix[row.user_id][row.item_id] = row.rating - total_sum / non_zeros
+
+        sparse_matrix[key] /= total_sum
+
+    c_similarity = cosine_similarity(sparse_matrix)
     similarities = c_similarity.sum(axis=1)
     c_similarity_scores = {
         data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)

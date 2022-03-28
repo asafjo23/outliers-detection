@@ -1,12 +1,11 @@
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
-from torch import Tensor, clone, clip, round, abs, sub, sum
-from torch.nn import Embedding
+from torch import Tensor, clone, clip, round, abs, sub, sum, tensor
 from torch.nn.modules.loss import _Loss
 
 from src.model import GaussianHistogram
-from src.utils import l2_regularize, DataConverter, DataProcessor
+from src.utils import DataConverter, DataProcessor
 
 
 class MiningOutliersLoss(_Loss):
@@ -24,15 +23,10 @@ class MiningOutliersLoss(_Loss):
 
     def mse_loss(
         self,
-        user_factors: Embedding,
-        item_factors: Embedding,
         original_ratings: Tensor,
         predicted_ratings: Tensor,
     ) -> Tensor:
-        mse_loss = F.mse_loss(original_ratings, predicted_ratings)
-        mse_loss += l2_regularize(user_factors.weight) * 1e-6
-        mse_loss += l2_regularize(item_factors.weight) * 1e-6
-        return mse_loss
+        return F.mse_loss(original_ratings, predicted_ratings)
 
     def histogram_loss(
         self,
@@ -43,7 +37,7 @@ class MiningOutliersLoss(_Loss):
         writer: SummaryWriter,
         epoch: int,
     ) -> Tensor:
-        histogram_loss = Tensor([0.0])
+        histogram_loss = tensor(0.0)
         for user, item, original_rating, predicted_rating in zip(
             users, items, original_ratings, predicted_ratings
         ):
@@ -51,6 +45,13 @@ class MiningOutliersLoss(_Loss):
 
             original_histogram = clone(self._data_processor.histograms_by_users[user_id])
             pdf_original_histogram = self._gauss_histo(original_histogram)
+
+            if epoch == 0:
+                writer.add_histogram(
+                    tag=f"{user_id}/original_histogram",
+                    values=original_histogram,
+                    global_step=epoch,
+                )
 
             original_rating_index = self.to_index(rating=original_rating)
             original_mass = self._calc_histogram_mass(pdf_original_histogram, original_rating_index)
@@ -62,11 +63,11 @@ class MiningOutliersLoss(_Loss):
             original_histogram[predicted_rating_index] += 1
 
             pdf_predicted_histogram = self._gauss_histo(original_histogram)
-            predicted_mass = MiningOutliersLoss._calc_histogram_mass(
+            predicted_mass = self._calc_histogram_mass(
                 pdf_predicted_histogram, predicted_rating_index
             )
 
-            histogram_loss += abs(sub(original_mass, predicted_mass))
+            histogram_loss += abs(sub(original_mass, predicted_mass)).squeeze()
 
             writer.add_scalars(
                 f"Loss/train/histogram_mass/{user_id}",
@@ -75,6 +76,12 @@ class MiningOutliersLoss(_Loss):
                     "predicted_mass": predicted_mass.item(),
                 },
                 epoch,
+            )
+
+            writer.add_histogram(
+                tag=f"{user_id}/predicted_histogram",
+                values=original_histogram,
+                global_step=epoch,
             )
 
         histogram_loss.requires_grad = True
