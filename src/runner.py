@@ -1,15 +1,14 @@
-from torch import cat, ones
+from torch.nn import MSELoss
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from src.loss import MiningOutliersLoss
 from src.model import MF
 from torchviz import make_dot
 
 
 class Runner:
-    def __init__(self, model: MF, criterion: MiningOutliersLoss, optimizer: Optimizer, epochs: int):
+    def __init__(self, model: MF, criterion: MSELoss, optimizer: Optimizer, epochs: int):
         self._model = model
         self._criterion = criterion
         self._optimizer = optimizer
@@ -28,24 +27,10 @@ class Runner:
                     items=items,
                 )
 
-                mse_loss = self._criterion.mse_loss(
-                    original_ratings=original_ratings,
-                    predicted_ratings=predicted_ratings,
-                )
-
-                histogram_loss = self._criterion.histogram_loss(
-                    users=users,
-                    items=items,
-                    original_ratings=original_ratings,
-                    predicted_ratings=predicted_ratings,
-                    writer=writer,
-                    epoch=epoch,
-                )
-
+                mse_loss = self._criterion(original_ratings, predicted_ratings)
                 writer.add_scalar("Loss/train/mse_loss", mse_loss / len(users), epoch)
-                writer.add_scalar("Loss/train/histogram_loss", histogram_loss / len(users), epoch)
 
-                loss = histogram_loss
+                loss = mse_loss
 
                 if self._plot_computational_graph:
                     make_dot(loss).view()

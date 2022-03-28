@@ -1,12 +1,15 @@
 import numpy as np
 import pandas as pd
+import torch
 from pandas import DataFrame, Series
+from pandas.core.groupby import DataFrameGroupBy
 from scipy.sparse import csr_matrix
-from torch import Tensor, sum, LongTensor, FloatTensor, histc
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import namedtuple
 from typing import Tuple, Mapping
 from torch.nn import Parameter
+from tqdm import tqdm
+
 from src.data_set import RatingsDataset
 from src.model import MF
 
@@ -49,9 +52,9 @@ class DataProcessor:
         items_grouped_by_users = original_df.groupby("user_id")
 
         for user_id, group in items_grouped_by_users:
-            ratings_as_tensor = Tensor(group.rating.values)
+            ratings_as_tensor = torch.Tensor(group.rating.values)
             ratings_by_users[user_id] = Parameter(ratings_as_tensor, requires_grad=False)
-            histograms_by_users[user_id] = histc(
+            histograms_by_users[user_id] = torch.histc(
                 ratings_as_tensor, bins=self.max_rating, min=self.min_rating, max=self.max_rating
             )
             item_to_index_rating[user_id] = {
@@ -120,10 +123,36 @@ class DataConverter:
         return DataFrame(random_data, columns=["user_id", "item_id", "rating"])
 
 
+def mean_centralised(dataframe: DataFrame) -> DataFrame:
+    items_group_by_users = dataframe.groupby("user_id")
+    normalized_data = dataframe.copy()
+    with tqdm(total=normalized_data.shape[0], desc="_mean_centralised") as pbar:
+        for (index, user_id, item_id, rating) in normalized_data.itertuples():
+            group = items_group_by_users.get_group(user_id)
+            total_sum = sum(group.rating.values)
+            normalized_data.at[index, "rating"] = rating - (total_sum / len(group))
+            pbar.update(1)
+
+    return normalized_data
+
+
+def mean_normalized(dataframe: DataFrame) -> DataFrame:
+    items_group_by_users = dataframe.groupby("user_id")
+    normalized_data = dataframe.copy()
+    with tqdm(total=normalized_data.shape[0], desc="_mean_normalized") as pbar:
+        for (index, user_id, item_id, rating) in normalized_data.itertuples():
+            group = items_group_by_users.get_group(user_id)
+            mean, std = group.rating.mean(), group.rating.std()
+            normalized_data.at[index, "rating"] = (rating - mean) / std
+            pbar.update(1)
+
+    return normalized_data
+
+
 def create_dataset(data_converter: DataConverter):
-    users_tensor = LongTensor(data_converter.encoded_df.user_id.values)
-    items_tensor = LongTensor(data_converter.encoded_df.item_id.values)
-    ratings_tensor = FloatTensor(data_converter.encoded_df.rating.values)
+    users_tensor = torch.LongTensor(data_converter.encoded_df.user_id.values)
+    items_tensor = torch.LongTensor(data_converter.encoded_df.item_id.values)
+    ratings_tensor = torch.FloatTensor(data_converter.encoded_df.rating.values)
 
     return RatingsDataset(
         users_tensor=users_tensor,
@@ -156,8 +185,8 @@ def classical_outliers_mining(data_converter: DataConverter) -> Mapping:
     for key, group in items_group_by_users:
         total_sum = sum(group.rating.values)
         non_zeros = len(group.rating.values)
-        for row in group.itertuples():
-            sparse_matrix[row.user_id][row.item_id] = row.rating - total_sum / non_zeros
+        for (index, user_id, item_id, rating) in group.itertuples():
+            sparse_matrix[user_id][item_id] = rating - total_sum / non_zeros
 
         sparse_matrix[key] /= total_sum
 

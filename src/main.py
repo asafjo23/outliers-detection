@@ -1,4 +1,5 @@
 from pandas import read_csv
+from torch.nn import MSELoss
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
@@ -29,25 +30,20 @@ if __name__ == "__main__":
     columns = ["workerID", "SongId", "Valence"]
     original_df = read_csv(DF_PATH, skipinitialspace=True, usecols=columns)
     original_df.columns = ["user_id", "item_id", "rating"]
+    songs_by_users = original_df.groupby("item_id")
 
     data_converter = DataConverter(
         original_df=original_df, n_random_users=10, n_ratings_per_random_user=200
     )
-    data_processor = DataProcessor(original_df=data_converter.original_df)
 
     model = MF(
         n_users=data_converter.n_users,
         n_items=data_converter.n_item,
     )
 
-    criterion = MiningOutliersLoss(data_converter=data_converter, data_processor=data_processor)
+    criterion = MSELoss()
     optimizer = SGD(model.parameters(), lr=5, weight_decay=1e-5)
-    runner = Runner(
-        model=model,
-        criterion=criterion,
-        optimizer=optimizer,
-        epochs=1
-    )
+    runner = Runner(model=model, criterion=criterion, optimizer=optimizer, epochs=1)
 
     train_set = create_dataset(data_converter=data_converter)
     train_load = DataLoader(train_set, batch_size=1000, shuffle=True)
