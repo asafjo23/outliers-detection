@@ -3,7 +3,7 @@ from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from src.model import MF
+from src.model import MF, SingleMF
 from torchviz import make_dot
 
 
@@ -48,4 +48,30 @@ class Runner:
                 self._plot_computational_graph = False
 
         writer.add_scalar("Loss/train", total_epoch_loss, epoch)
+        return total_epoch_loss
+
+
+class SingleMFRunner:
+    def __init__(self, model: SingleMF, criterion: MSELoss, optimizer: Optimizer):
+        self._model = model
+        self._criterion = criterion
+        self._optimizer = optimizer
+
+    def train(self, train_loader: DataLoader) -> float:
+        self._model.train()
+        total_epoch_loss = 0.0
+
+        for users, items, original_ratings in train_loader:
+            original_ratings = original_ratings.float()
+            predicted_ratings = self._model(users=users, items=items)
+
+            mse_loss = self._criterion(original_ratings, predicted_ratings)
+            loss = mse_loss
+
+            self._optimizer.zero_grad()
+            loss.backward()
+            self._optimizer.step()
+
+            total_epoch_loss += loss.item() / len(users)
+
         return total_epoch_loss

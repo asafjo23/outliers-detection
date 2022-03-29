@@ -13,8 +13,8 @@ from config import DATA_DIR
 from src.consistency import clac_cronbach_alpha, calc_items_kmeans, direct_calculation
 from src.data_set import RatingsDataset
 from src.loss import MiningOutliersLoss
-from src.model import MF
-from src.runner import Runner
+from src.model import MF, SingleMF
+from src.runner import Runner, SingleMFRunner
 from src.utils import (
     create_dataset,
     mine_outliers_sklearn,
@@ -66,10 +66,7 @@ if __name__ == "__main__":
     original_df = read_csv(DF_PATH, skipinitialspace=True, usecols=columns)
     original_df.columns = ["user_id", "item_id", "rating"]
 
-    direct_calculation(data_frame=original_df)
-    data_converter = DataConverter(
-        original_df=original_df, n_random_users=10, n_ratings_per_random_user=9
-    )
+    data_converter = DataConverter(original_df=original_df)
 
     valence_model = MF(n_users=data_converter.n_users, n_items=data_converter.n_item,)
     epochs = 1
@@ -78,7 +75,7 @@ if __name__ == "__main__":
     optimizer = SGD(valence_model.parameters(), lr=5, weight_decay=1e-3)
     runner = Runner(model=valence_model, criterion=criterion, optimizer=optimizer, epochs=epochs)
 
-    train_set = create_dataset(data_converter=data_converter)
+    train_set = create_dataset(data_frame=data_converter.encoded_df)
     train_load = DataLoader(train_set, batch_size=1000, shuffle=True)
     users, items, ratings = select_n_random(train_set)
 
@@ -88,39 +85,3 @@ if __name__ == "__main__":
         for epoch in range(epochs):
             epoch_loss = runner.train(train_loader=train_load, epoch=epoch, writer=writer)
             print(f"epoch={epoch + 1}, loss={epoch_loss}")
-
-    direct_calculation(data_frame=original_df)
-    # plot_item_clustering(model=valence_model, data_converter=data_converter)
-
-    # columns = ["user_id", "item_id", "rating"]
-    # original_df = read_csv(
-    #     DF_PATH, skipinitialspace=True, sep=";", names=columns, encoding="latin-1", low_memory=False
-    # )
-    # data_converter = DataConverter(
-    #     original_df=original_df, n_random_users=0, n_ratings_per_random_user=200
-    # )
-    #
-    # model = MF(
-    #     n_users=data_converter.n_users,
-    #     n_items=data_converter.n_item,
-    # )
-    #
-    # criterion = MSELoss()
-    # optimizer = SGD(model.parameters(), lr=5, weight_decay=1e-5)
-    # epochs = 5
-    #
-    # runner = Runner(
-    #     model=model,
-    #     criterion=criterion,
-    #     optimizer=optimizer,
-    #     epochs=epochs
-    # )
-    #
-    # train_set = create_dataset(data_converter=data_converter)
-    # train_load = DataLoader(train_set, batch_size=1000, shuffle=True)
-    # with SummaryWriter("runs/Book-Crossing") as writer:
-    #     for epoch in range(epochs):
-    #         epoch_loss = runner.train(train_loader=train_load, epoch=epoch, writer=writer)
-    #         print(f"epoch={epoch + 1}, loss={epoch_loss}")
-    #
-    # outliers = mine_outliers_sklearn(model=model, data_converter=data_converter)

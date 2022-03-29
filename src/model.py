@@ -45,3 +45,24 @@ class MF(Module):
 
         pred = sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
         return pred.squeeze()
+
+
+class SingleMF(Module):
+    def __init__(self, optimized_item_factors: Embedding, n_factors=50, include_bias=False):
+        super().__init__()
+        self.user_factors = Embedding(1, n_factors)
+        self.item_factors = optimized_item_factors.requires_grad_(False)
+
+        if include_bias:
+            self.user_biases = Embedding(1, 1)
+
+        self.include_bias = include_bias
+
+    def forward(self, users: Tensor, items: Tensor) -> Tensor:
+        if self.include_bias:
+            pred = self.user_biases(users) + self.item_biases(items)
+            pred += sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
+            return pred.squeeze()
+
+        pred = sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
+        return pred.squeeze()

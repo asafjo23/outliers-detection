@@ -65,14 +65,14 @@ class DataProcessor:
 
 
 class DataConverter:
-    def __init__(self, original_df: DataFrame, n_random_users: int, n_ratings_per_random_user: int):
+    def __init__(self, original_df: DataFrame, n_random_users=0, n_ratings_per_random_user=0):
         assert list(original_df.columns) == ["user_id", "item_id", "rating"]
         original_data = original_df.copy()
         self.min_rating = min(original_df.rating.values)
         self.max_rating = max(original_df.rating.values)
 
         if n_random_users > 0:
-            random_users = self.create_random_users(
+            random_users = self.create_outlier_dataset(
                 original_df=original_data,
                 number_of_users_to_add=n_random_users,
                 n_ratings_per_random_user=n_ratings_per_random_user,
@@ -101,7 +101,7 @@ class DataConverter:
     def get_encoded_item_ids(self) -> np.ndarray:
         return self._item_original_id_to_encoded_id.encoded_col
 
-    def create_random_users(
+    def create_outlier_dataset(
         self, original_df: DataFrame, number_of_users_to_add: int, n_ratings_per_random_user: int
     ) -> DataFrame:
         assert list(original_df.columns) == ["user_id", "item_id", "rating"]
@@ -122,8 +122,13 @@ class DataConverter:
 def mean_centralised(dataframe: DataFrame) -> DataFrame:
     items_group_by_users = dataframe.groupby("user_id")
     normalized_data = dataframe.copy()
-    tqdm_notebook.pandas()
-    normalized_data["rating"] = normalized_data.progress_apply(lambda row: row["rating"] - (sum(items_group_by_users.get_group(row["user_id"]).rating) / len(items_group_by_users.get_group(row["user_id"]))))
+    normalized_data["rating"] = normalized_data.progress_apply(
+        lambda row: row["rating"]
+        - (
+            sum(items_group_by_users.get_group(row["user_id"]).rating)
+            / len(items_group_by_users.get_group(row["user_id"]))
+        )
+    )
     with tqdm(total=normalized_data.shape[0], desc="_mean_centralised") as pbar:
         for (index, user_id, item_id, rating) in normalized_data.itertuples():
             group = items_group_by_users.get_group(user_id)
@@ -147,10 +152,12 @@ def mean_normalized(dataframe: DataFrame) -> DataFrame:
     return normalized_data
 
 
-def create_dataset(data_converter: DataConverter):
-    users_tensor = torch.LongTensor(data_converter.encoded_df.user_id.values)
-    items_tensor = torch.LongTensor(data_converter.encoded_df.item_id.values)
-    ratings_tensor = torch.FloatTensor(data_converter.encoded_df.rating.values)
+def create_dataset(data_frame: DataFrame):
+    assert list(data_frame.columns) == ["user_id", "item_id", "rating"]
+
+    users_tensor = torch.LongTensor(data_frame.user_id.values)
+    items_tensor = torch.LongTensor(data_frame.item_id.values)
+    ratings_tensor = torch.FloatTensor(data_frame.rating.values)
 
     return RatingsDataset(
         users_tensor=users_tensor, items_tensor=items_tensor, ratings_tensor=ratings_tensor,
@@ -242,3 +249,12 @@ def classical_outliers_mining(data_converter: DataConverter) -> Mapping:
         data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)
     }
     return c_similarity_scores
+
+
+def create_outlier_dataset(dataset: DataFrame) -> DataFrame:
+    """
+    This function takes as input the original DF, and creates dataset for 1 outlier with
+    random songs and tags.
+    :param dataset:
+    :return: new outlier dataset
+    """
