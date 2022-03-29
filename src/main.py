@@ -2,6 +2,7 @@ from collections import namedtuple
 
 import numpy as np
 import pandas
+import torch
 from matplotlib import pyplot as plt
 from pandas import read_csv
 from torch.nn import MSELoss
@@ -9,8 +10,13 @@ from torch.optim import SGD
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch import randperm
-from config import DATA_DIR
-from src.consistency import clac_cronbach_alpha, calc_items_kmeans, direct_calculation
+from config import DATA_DIR, MODELS_DIR
+from src.consistency import (
+    clac_cronbach_alpha,
+    calc_items_kmeans,
+    direct_consistency_calculation,
+    mf_consistency_calculation,
+)
 from src.data_set import RatingsDataset
 from src.loss import MiningOutliersLoss
 from src.model import MF, SingleMF
@@ -67,21 +73,7 @@ if __name__ == "__main__":
     original_df.columns = ["user_id", "item_id", "rating"]
 
     data_converter = DataConverter(original_df=original_df)
+    valence_model = MF(n_users=data_converter.n_users, n_items=data_converter.n_item, include_bias=True)
+    valence_model.load_state_dict(torch.load(f"{MODELS_DIR}/DEAM/raw/valence.pt"))
 
-    valence_model = MF(n_users=data_converter.n_users, n_items=data_converter.n_item,)
-    epochs = 1
-
-    criterion = MSELoss()
-    optimizer = SGD(valence_model.parameters(), lr=5, weight_decay=1e-3)
-    runner = Runner(model=valence_model, criterion=criterion, optimizer=optimizer, epochs=epochs)
-
-    train_set = create_dataset(data_frame=data_converter.encoded_df)
-    train_load = DataLoader(train_set, batch_size=1000, shuffle=True)
-    users, items, ratings = select_n_random(train_set)
-
-    with SummaryWriter("runs/dev") as writer:
-        writer.add_graph(valence_model, (users, items))
-
-        for epoch in range(epochs):
-            epoch_loss = runner.train(train_loader=train_load, epoch=epoch, writer=writer)
-            print(f"epoch={epoch + 1}, loss={epoch_loss}")
+    mf_consistency_calculation(data_frame=original_df, model=valence_model)

@@ -4,7 +4,7 @@ import torch
 from pandas import DataFrame, Series
 from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine_similarity
-from torch import cosine_similarity as torch_cosine_similarity
+from torch import cosine_similarity as torch_cosine_similarity, Tensor
 from collections import namedtuple
 from typing import Tuple, Mapping
 from torch.nn import Parameter
@@ -164,16 +164,13 @@ def create_dataset(data_frame: DataFrame):
     )
 
 
-def mine_outliers_torch(model: MF, data_converter: DataConverter) -> Mapping:
+def mine_outliers_torch(embeddings: Tensor) -> Mapping:
     """
     This function measures the cosine similarities between all user embeddings.
     The function based on torch cosine_similarity.
-    :param model:
-    :param data_converter:
+    :param embeddings:
     :return:
     """
-    embeddings = list(model.user_factors.parameters())[0].detach().cpu()
-
     similarities = {}
     with tqdm(desc="mine_outliers") as pbar:
         for i in range(len(embeddings)):
@@ -185,43 +182,32 @@ def mine_outliers_torch(model: MF, data_converter: DataConverter) -> Mapping:
                 similarity += cos_sim
                 pbar.update(1)
 
-            user_id = data_converter.get_original_user_id(encoded_id=i)
-            similarities[user_id] = similarity
+            similarities[i] = similarity
 
     return similarities
 
 
-def mine_outliers_sklearn(model: MF, data_converter: DataConverter) -> Mapping:
+def mine_outliers_sklearn(embeddings: Tensor) -> np.ndarray:
     """
     This function measures the cosine similarities between all user embeddings.
     The function based on sklearn cosine_similarity.
-    :param model:
-    :param data_converter:
+    :param embeddings:
     :return:
     """
-    embeddings = list(model.user_factors.parameters())[0].detach().cpu()
     c_similarity = sklearn_cosine_similarity(embeddings)
     similarities = c_similarity.sum(axis=1)
-    c_similarity_scores = {
-        data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)
-    }
-    return c_similarity_scores
+    return similarities
 
 
-def mine_outliers_scipy(model: MF, data_converter: DataConverter) -> Mapping:
+def mine_outliers_scipy(embeddings: Tensor) -> np.ndarray:
     """
     This function measures the cosine distance between all user embeddings.
-    :param model:
-    :param data_converter:
+    :param embeddings:
     :return:
     """
-    embeddings = list(model.user_factors.parameters())[0].detach().cpu()
     cosine_distances = 1 - cdist(embeddings, embeddings, metric="cosine")
     distances = cosine_distances.sum(axis=1)
-    cosine_distances = {
-        data_converter.get_original_user_id(i): score for i, score in enumerate(distances)
-    }
-    return cosine_distances
+    return distances
 
 
 def classical_outliers_mining(data_converter: DataConverter) -> Mapping:
