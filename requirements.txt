@@ -5,3 +5,5 @@ scikit-learn==1.0.2
 tqdm==4.63.0
 tensorboardX==2.5
 torchviz==0.0.2
+pingouin==0.5.1
+scipy==1.8.0

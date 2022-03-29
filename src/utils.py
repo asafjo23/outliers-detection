@@ -2,14 +2,14 @@ import numpy as np
 import pandas as pd
 import torch
 from pandas import DataFrame, Series
-from pandas.core.groupby import DataFrameGroupBy
 from scipy.sparse import csr_matrix
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine_similarity
+from torch import cosine_similarity as torch_cosine_similarity
 from collections import namedtuple
 from typing import Tuple, Mapping
 from torch.nn import Parameter
 from tqdm import tqdm
-
+from scipy.spatial.distance import cdist
 from src.data_set import RatingsDataset
 from src.model import MF
 
@@ -58,7 +58,7 @@ class DataProcessor:
                 ratings_as_tensor, bins=self.max_rating, min=self.min_rating, max=self.max_rating
             )
             item_to_index_rating[user_id] = {
-                row.item_id: i for i, row in enumerate(group.itertuples())
+                item_id: i for i, (_, _, item_id, _) in enumerate(group.itertuples())
             }
 
         return ratings_by_users, histograms_by_users, item_to_index_rating
@@ -113,11 +113,7 @@ class DataConverter:
                 random_song_id = np.random.choice(original_df.item_id.values)
                 random_rating = np.random.randint(self.min_rating, self.max_rating)
                 random_data.append(
-                    Row(
-                        user_id=f"random_guy_{i}",
-                        item_id=random_song_id,
-                        rating=random_rating,
-                    )
+                    Row(user_id=f"random_guy_{i}", item_id=random_song_id, rating=random_rating,)
                 )
 
         return DataFrame(random_data, columns=["user_id", "item_id", "rating"])
@@ -126,6 +122,8 @@ class DataConverter:
 def mean_centralised(dataframe: DataFrame) -> DataFrame:
     items_group_by_users = dataframe.groupby("user_id")
     normalized_data = dataframe.copy()
+    tqdm_notebook.pandas()
+    normalized_data["rating"] = normalized_data.progress_apply(lambda row: row["rating"] - (sum(items_group_by_users.get_group(row["user_id"]).rating) / len(items_group_by_users.get_group(row["user_id"]))))
     with tqdm(total=normalized_data.shape[0], desc="_mean_centralised") as pbar:
         for (index, user_id, item_id, rating) in normalized_data.itertuples():
             group = items_group_by_users.get_group(user_id)
@@ -155,20 +153,68 @@ def create_dataset(data_converter: DataConverter):
     ratings_tensor = torch.FloatTensor(data_converter.encoded_df.rating.values)
 
     return RatingsDataset(
-        users_tensor=users_tensor,
-        items_tensor=items_tensor,
-        ratings_tensor=ratings_tensor,
+        users_tensor=users_tensor, items_tensor=items_tensor, ratings_tensor=ratings_tensor,
     )
 
 
-def mine_outliers(model: MF, data_converter: DataConverter) -> Mapping:
-    optimized_user_embeddings = np.array(model.user_factors.weight.data)
-    c_similarity = cosine_similarity(optimized_user_embeddings)
+def mine_outliers_torch(model: MF, data_converter: DataConverter) -> Mapping:
+    """
+    This function measures the cosine similarities between all user embeddings.
+    The function based on torch cosine_similarity.
+    :param model:
+    :param data_converter:
+    :return:
+    """
+    embeddings = list(model.user_factors.parameters())[0].detach().cpu()
+
+    similarities = {}
+    with tqdm(desc="mine_outliers") as pbar:
+        for i in range(len(embeddings)):
+            similarity = 0.0
+            for j in range(len(embeddings)):
+                cos_sim = torch_cosine_similarity(
+                    embeddings[i].view(1, -1), embeddings[j].view(1, -1)
+                ).item()
+                similarity += cos_sim
+                pbar.update(1)
+
+            user_id = data_converter.get_original_user_id(encoded_id=i)
+            similarities[user_id] = similarity
+
+    return similarities
+
+
+def mine_outliers_sklearn(model: MF, data_converter: DataConverter) -> Mapping:
+    """
+    This function measures the cosine similarities between all user embeddings.
+    The function based on sklearn cosine_similarity.
+    :param model:
+    :param data_converter:
+    :return:
+    """
+    embeddings = list(model.user_factors.parameters())[0].detach().cpu()
+    c_similarity = sklearn_cosine_similarity(embeddings)
     similarities = c_similarity.sum(axis=1)
     c_similarity_scores = {
         data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)
     }
     return c_similarity_scores
+
+
+def mine_outliers_scipy(model: MF, data_converter: DataConverter) -> Mapping:
+    """
+    This function measures the cosine distance between all user embeddings.
+    :param model:
+    :param data_converter:
+    :return:
+    """
+    embeddings = list(model.user_factors.parameters())[0].detach().cpu()
+    cosine_distances = 1 - cdist(embeddings, embeddings, metric="cosine")
+    distances = cosine_distances.sum(axis=1)
+    cosine_distances = {
+        data_converter.get_original_user_id(i): score for i, score in enumerate(distances)
+    }
+    return cosine_distances
 
 
 def classical_outliers_mining(data_converter: DataConverter) -> Mapping:
@@ -190,7 +236,7 @@ def classical_outliers_mining(data_converter: DataConverter) -> Mapping:
 
         sparse_matrix[key] /= total_sum
 
-    c_similarity = cosine_similarity(sparse_matrix)
+    c_similarity = sklearn_cosine_similarity(sparse_matrix)
     similarities = c_similarity.sum(axis=1)
     c_similarity_scores = {
         data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)

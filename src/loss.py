@@ -21,11 +21,7 @@ class MiningOutliersLoss(_Loss):
             bins=self.max_rating, min=self.min_rating, max=self.max_rating, sigma=1.5
         )
 
-    def mse_loss(
-        self,
-        original_ratings: Tensor,
-        predicted_ratings: Tensor,
-    ) -> Tensor:
+    def mse_loss(self, original_ratings: Tensor, predicted_ratings: Tensor,) -> Tensor:
         return F.mse_loss(original_ratings, predicted_ratings)
 
     def histogram_loss(
@@ -71,17 +67,12 @@ class MiningOutliersLoss(_Loss):
 
             writer.add_scalars(
                 f"Loss/train/histogram_mass/{user_id}",
-                {
-                    "original_mass": original_mass.item(),
-                    "predicted_mass": predicted_mass.item(),
-                },
+                {"original_mass": original_mass.item(), "predicted_mass": predicted_mass.item(),},
                 epoch,
             )
 
             writer.add_histogram(
-                tag=f"{user_id}/predicted_histogram",
-                values=original_histogram,
-                global_step=epoch,
+                tag=f"{user_id}/predicted_histogram", values=original_histogram, global_step=epoch,
             )
 
         histogram_loss.requires_grad = True

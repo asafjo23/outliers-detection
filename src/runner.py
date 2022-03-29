@@ -12,7 +12,7 @@ class Runner:
         self._model = model
         self._criterion = criterion
         self._optimizer = optimizer
-        self._plot_computational_graph = True
+        self._plot_computational_graph = False
         self._epochs = epochs
 
     def train(self, train_loader: DataLoader, epoch: int, writer: SummaryWriter) -> float:
@@ -22,10 +22,7 @@ class Runner:
         with tqdm(train_loader, position=0, leave=True, unit="batch") as tepoch:
             for users, items, original_ratings in tepoch:
                 original_ratings = original_ratings.float()
-                predicted_ratings = self._model(
-                    users=users,
-                    items=items,
-                )
+                predicted_ratings = self._model(users=users, items=items,)
 
                 mse_loss = self._criterion(original_ratings, predicted_ratings)
                 writer.add_scalar("Loss/train/mse_loss", mse_loss / len(users), epoch)
