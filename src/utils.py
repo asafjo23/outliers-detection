@@ -111,7 +111,8 @@ class DataConverter:
         for i in range(original_num_of_users, original_num_of_users + number_of_users_to_add):
             for _ in range(n_ratings_per_random_user):
                 random_song_id = np.random.choice(original_df.item_id.values)
-                random_rating = np.random.randint(self.min_rating, self.max_rating)
+                # random_rating = np.random.randint(self.min_rating, self.max_rating)
+                random_rating = 2
                 random_data.append(
                     Row(user_id=f"random_guy_{i}", item_id=random_song_id, rating=random_rating,)
                 )
