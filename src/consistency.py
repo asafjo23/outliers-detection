@@ -2,6 +2,7 @@ import numpy as np
 import pingouin as pg
 import torch
 from pandas import DataFrame
+from scipy.sparse import csr_matrix
 from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -19,8 +20,15 @@ def lower_embeddings_dims(embeddings: np.array) -> TSNE:
 
 
 def clac_cronbach_alpha(data_frame: DataFrame):
-    print(pg.cronbach_alpha(data=data_frame))
-    print("hey")
+    sparse_matrix = csr_matrix(
+        (data_frame.user_id.nunique(), data_frame.item_id.nunique()), dtype=np.float64
+    ).toarray()
+
+    for (index, user_id, item_id, rating) in data_frame.itertuples():
+        sparse_matrix[user_id][item_id] = rating
+
+    sparse_df = DataFrame(sparse_matrix)
+    return pg.cronbach_alpha(data=sparse_df)
 
 
 def calc_items_kmeans(model: MF) -> object:
