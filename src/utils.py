@@ -10,8 +10,10 @@ from typing import Tuple, Mapping
 from torch.nn import Parameter
 from tqdm import tqdm
 from scipy.spatial.distance import cdist
+
+from config import DATA_DIR
 from src.data_set import RatingsDataset
-from src.model import MF
+from tqdm._tqdm_notebook import tqdm_notebook
 
 
 class ProcColumn:
@@ -111,8 +113,7 @@ class DataConverter:
         for i in range(original_num_of_users, original_num_of_users + number_of_users_to_add):
             for _ in range(n_ratings_per_random_user):
                 random_song_id = np.random.choice(original_df.item_id.values)
-                # random_rating = np.random.randint(self.min_rating, self.max_rating)
-                random_rating = 2
+                random_rating = np.random.randint(self.min_rating, self.max_rating)
                 random_data.append(
                     Row(user_id=f"random_guy_{i}", item_id=random_song_id, rating=random_rating,)
                 )
@@ -122,35 +123,29 @@ class DataConverter:
 
 def mean_centralised(dataframe: DataFrame) -> DataFrame:
     items_group_by_users = dataframe.groupby("user_id")
-    normalized_data = dataframe.copy()
-    normalized_data["rating"] = normalized_data.progress_apply(
+    dataframe["rating"] = dataframe.progress_apply(
         lambda row: row["rating"]
         - (
             sum(items_group_by_users.get_group(row["user_id"]).rating)
             / len(items_group_by_users.get_group(row["user_id"]))
-        )
+        ),
+        axis=1,
     )
-    with tqdm(total=normalized_data.shape[0], desc="_mean_centralised") as pbar:
-        for (index, user_id, item_id, rating) in normalized_data.itertuples():
-            group = items_group_by_users.get_group(user_id)
-            total_sum = sum(group.rating.values)
-            normalized_data.at[index, "rating"] = rating - (total_sum / len(group))
-            pbar.update(1)
-
-    return normalized_data
+    return dataframe
 
 
 def mean_normalized(dataframe: DataFrame) -> DataFrame:
+    tqdm_notebook.pandas()
     items_group_by_users = dataframe.groupby("user_id")
-    normalized_data = dataframe.copy()
-    with tqdm(total=normalized_data.shape[0], desc="_mean_normalized") as pbar:
-        for (index, user_id, item_id, rating) in normalized_data.itertuples():
-            group = items_group_by_users.get_group(user_id)
-            mean, std = group.rating.mean(), group.rating.std()
-            normalized_data.at[index, "rating"] = (rating - mean) / std
-            pbar.update(1)
-
-    return normalized_data
+    dataframe["rating"] = dataframe.progress_apply(
+        lambda row: (row["rating"] - items_group_by_users.get_group(row["user_id"]).rating.mean())
+        / (items_group_by_users.get_group(row["user_id"]).rating.std() + 1e-8),
+        axis=1,
+    )
+    dataframe.to_csv(
+        f"{DATA_DIR}/DEAM/annotations/annotations per each rater/song_level/static_annotations_songs_1_2000_mean_normalized.csv"
+    )
+    return dataframe
 
 
 def create_dataset(data_frame: DataFrame):
@@ -236,12 +231,3 @@ def classical_outliers_mining(data_converter: DataConverter) -> Mapping:
         data_converter.get_original_user_id(i): score for i, score in enumerate(similarities)
     }
     return c_similarity_scores
-
-
-def create_outlier_dataset(dataset: DataFrame) -> DataFrame:
-    """
-    This function takes as input the original DF, and creates dataset for 1 outlier with
-    random songs and tags.
-    :param dataset:
-    :return: new outlier dataset
-    """

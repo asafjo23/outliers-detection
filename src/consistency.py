@@ -6,9 +6,16 @@ from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from tqdm._tqdm_notebook import tqdm_notebook
-
+from sklearn.manifold import TSNE
 from src.model import MF
 from src.utils import DataConverter, create_dataset
+
+
+def lower_embeddings_dims(embeddings: np.array) -> TSNE:
+    tsne_em = TSNE(n_components=2, perplexity=30.0, n_iter=1000, verbose=1,).fit_transform(
+        embeddings
+    )
+    return tsne_em
 
 
 def clac_cronbach_alpha(data_frame: DataFrame):
@@ -19,6 +26,7 @@ def clac_cronbach_alpha(data_frame: DataFrame):
 def calc_items_kmeans(model: MF) -> object:
     item_embeddings = list(model.item_factors.parameters())[0].detach().cpu()
     item_embeddings = np.array(item_embeddings)
+    item_embeddings = lower_embeddings_dims(embeddings=item_embeddings)
     kmeans = KMeans(n_clusters=4, random_state=0).fit(item_embeddings)
     return kmeans
 
