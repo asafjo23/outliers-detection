@@ -2,10 +2,11 @@ pandas==1.4.1
 torch==1.11.0
 numpy==1.22.3
 scikit-learn==1.0.2
-tqdm==4.63.0
+tqdm==4.63.1
 tensorboardX==2.5
 torchviz==0.0.2
 pingouin==0.5.1
 scipy==1.8.0
 plotly==5.6.0
 matplotlib==3.5.1
+colorama==0.4.4
