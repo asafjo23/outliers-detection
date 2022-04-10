@@ -3,6 +3,8 @@ from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+
+from src.loss import MiningOutliersLoss
 from src.model import MF, SingleMF
 from torchviz import make_dot
 

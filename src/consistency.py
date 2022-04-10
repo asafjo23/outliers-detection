@@ -1,22 +1,15 @@
+from typing import Mapping
+
 import numpy as np
 import pingouin as pg
 import torch
 from pandas import DataFrame
 from scipy.sparse import csr_matrix
-from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from tqdm._tqdm_notebook import tqdm_notebook
-from sklearn.manifold import TSNE
 from src.model import MF
 from src.utils import DataConverter, create_dataset
-
-
-def lower_embeddings_dims(embeddings: np.array) -> TSNE:
-    tsne_em = TSNE(n_components=2, perplexity=30.0, n_iter=1000, verbose=1,).fit_transform(
-        embeddings
-    )
-    return tsne_em
 
 
 def clac_cronbach_alpha(data_frame: DataFrame):
@@ -26,17 +19,8 @@ def clac_cronbach_alpha(data_frame: DataFrame):
 
     for (index, user_id, item_id, rating) in data_frame.itertuples():
         sparse_matrix[user_id][item_id] = rating
-
     sparse_df = DataFrame(sparse_matrix)
     return pg.cronbach_alpha(data=sparse_df)
-
-
-def calc_items_kmeans(model: MF) -> object:
-    item_embeddings = list(model.item_factors.parameters())[0].detach().cpu()
-    item_embeddings = np.array(item_embeddings)
-    item_embeddings = lower_embeddings_dims(embeddings=item_embeddings)
-    kmeans = KMeans(n_clusters=4, random_state=0).fit(item_embeddings)
-    return kmeans
 
 
 def direct_consistency_calculation(data_frame: DataFrame) -> float:
@@ -49,8 +33,11 @@ def direct_consistency_calculation(data_frame: DataFrame) -> float:
     return consistency
 
 
-def mf_consistency_calculation(data_frame: DataFrame, model: MF) -> float:
+def mf_consistency_calculation(
+    data_frame: DataFrame, model: MF, outliers: Mapping, round_prediction: bool
+) -> float:
     consistency = 0.0
+    max_diff = 0.0
     model.eval()
 
     data_converter = DataConverter(original_df=data_frame)
@@ -59,7 +46,16 @@ def mf_consistency_calculation(data_frame: DataFrame, model: MF) -> float:
 
     with torch.no_grad():
         for user, item, original_rating in tqdm(train_loader, desc="mf_calculation"):
+            original_user_id = data_converter.get_original_user_id(encoded_id=user.item())
+            if original_user_id in outliers:
+                continue
             predicted_rating = model(users=user, items=item)
-            consistency += original_rating.item() - predicted_rating.item()
+            if round_prediction:
+                consistency += original_rating.item() - torch.round(predicted_rating).item()
+                max_diff = max(
+                    max_diff, original_rating.item() - torch.round(predicted_rating).item()
+                )
+            else:
+                consistency += original_rating.item() - predicted_rating.item()
 
     return consistency

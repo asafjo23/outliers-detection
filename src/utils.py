@@ -10,10 +10,7 @@ from typing import Tuple, Mapping
 from torch.nn import Parameter
 from tqdm import tqdm
 from scipy.spatial.distance import cdist
-
-from config import DATA_DIR
 from src.data_set import RatingsDataset
-from tqdm._tqdm_notebook import tqdm_notebook
 
 
 class ProcColumn:
@@ -33,8 +30,8 @@ class ProcColumn:
 
 class DataProcessor:
     def __init__(self, original_df: DataFrame):
-        self.min_rating = min(original_df.rating.values)
-        self.max_rating = max(original_df.rating.values)
+        self.min_rating = round(min(original_df.rating.values))
+        self.max_rating = round(max(original_df.rating.values))
 
         (
             self.ratings_by_user,
@@ -68,7 +65,6 @@ class DataProcessor:
 
 class DataConverter:
     def __init__(self, original_df: DataFrame, n_random_users=0, n_ratings_per_random_user=0):
-        assert list(original_df.columns) == ["user_id", "item_id", "rating"]
         original_data = original_df.copy()
         self.min_rating = min(original_df.rating.values)
         self.max_rating = max(original_df.rating.values)
@@ -97,6 +93,12 @@ class DataConverter:
     def get_original_item_id(self, encoded_id: int) -> str:
         return self._item_original_id_to_encoded_id.get_name(index=encoded_id)
 
+    def get_encoded_user_id(self, original_id: str) -> int:
+        return self._user_original_id_to_encoded_id.get_index(name=original_id)
+
+    def get_encoded_item_id(self, original_id: str) -> int:
+        return self._item_original_id_to_encoded_id.get_index(name=original_id)
+
     def get_encoded_user_ids(self) -> np.ndarray:
         return self._user_original_id_to_encoded_id.encoded_col
 
@@ -106,7 +108,6 @@ class DataConverter:
     def create_outlier_dataset(
         self, original_df: DataFrame, number_of_users_to_add: int, n_ratings_per_random_user: int
     ) -> DataFrame:
-        assert list(original_df.columns) == ["user_id", "item_id", "rating"]
         Row = namedtuple("Row", ["user_id", "item_id", "rating"])
         random_data = []
         original_num_of_users = original_df.user_id.nunique()
@@ -115,42 +116,13 @@ class DataConverter:
                 random_song_id = np.random.choice(original_df.item_id.values)
                 random_rating = np.random.randint(self.min_rating, self.max_rating)
                 random_data.append(
-                    Row(user_id=f"random_guy_{i}", item_id=random_song_id, rating=random_rating,)
+                    Row(user_id=f"random annotator", item_id=random_song_id, rating=random_rating,)
                 )
 
         return DataFrame(random_data, columns=["user_id", "item_id", "rating"])
 
 
-def mean_centralised(dataframe: DataFrame) -> DataFrame:
-    items_group_by_users = dataframe.groupby("user_id")
-    dataframe["rating"] = dataframe.progress_apply(
-        lambda row: row["rating"]
-        - (
-            sum(items_group_by_users.get_group(row["user_id"]).rating)
-            / len(items_group_by_users.get_group(row["user_id"]))
-        ),
-        axis=1,
-    )
-    return dataframe
-
-
-def mean_normalized(dataframe: DataFrame) -> DataFrame:
-    tqdm_notebook.pandas()
-    items_group_by_users = dataframe.groupby("user_id")
-    dataframe["rating"] = dataframe.progress_apply(
-        lambda row: (row["rating"] - items_group_by_users.get_group(row["user_id"]).rating.mean())
-        / (items_group_by_users.get_group(row["user_id"]).rating.std() + 1e-8),
-        axis=1,
-    )
-    dataframe.to_csv(
-        f"{DATA_DIR}/DEAM/annotations/annotations per each rater/song_level/static_annotations_songs_1_2000_mean_normalized.csv"
-    )
-    return dataframe
-
-
-def create_dataset(data_frame: DataFrame):
-    assert list(data_frame.columns) == ["user_id", "item_id", "rating"]
-
+def create_dataset(data_frame: DataFrame) -> RatingsDataset:
     users_tensor = torch.LongTensor(data_frame.user_id.values)
     items_tensor = torch.LongTensor(data_frame.item_id.values)
     ratings_tensor = torch.FloatTensor(data_frame.rating.values)
