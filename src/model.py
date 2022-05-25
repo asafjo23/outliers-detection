@@ -1,7 +1,13 @@
+from typing import Tuple
+
+import torch
 from torch.nn import Embedding, Module
 from torch.nn.init import xavier_normal_
-from torch import arange, unsqueeze, exp, Tensor, sum
+from torch import arange, unsqueeze, exp, Tensor, sum, empty
 from numpy import sqrt, pi
+from torchviz import make_dot
+
+from src.utils import DataConverter, DataProcessor
 
 
 class GaussianHistogram(Module):
@@ -23,10 +29,7 @@ class GaussianHistogram(Module):
 
 class MF(Module):
     def __init__(
-        self,
-        n_users: int,
-        n_items: int,
-        n_factors=50,
+        self, n_users: int, n_items: int, n_factors=50, include_bias=False,
     ):
         super().__init__()
         self.user_factors = Embedding(n_users, n_factors)
@@ -34,14 +37,38 @@ class MF(Module):
         self.user_factors.weight = xavier_normal_(self.user_factors.weight)
         self.item_factors.weight = xavier_normal_(self.item_factors.weight)
 
-        self.user_biases = Embedding(n_users, 1)
-        self.item_biases = Embedding(n_items, 1)
+        if include_bias:
+            self.user_biases = Embedding(n_users, 1)
+            self.item_biases = Embedding(n_items, 1)
 
-    def forward(
-        self,
-        users: Tensor,
-        items: Tensor,
-    ) -> Tensor:
-        pred = self.user_biases(users) + self.item_biases(items)
-        pred += sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
+        self.include_bias = include_bias
+
+    def forward(self, users: Tensor, items: Tensor,) -> Tensor:
+        if self.include_bias:
+            pred = self.user_biases(users) + self.item_biases(items)
+            pred += sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
+            return pred.squeeze()
+
+        pred = sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
+        return pred.squeeze()
+
+
+class SingleMF(Module):
+    def __init__(self, optimized_item_factors: Embedding, n_factors=50, include_bias=False):
+        super().__init__()
+        self.user_factors = Embedding(1, n_factors)
+        self.item_factors = optimized_item_factors.requires_grad_(False)
+
+        if include_bias:
+            self.user_biases = Embedding(1, 1)
+
+        self.include_bias = include_bias
+
+    def forward(self, users: Tensor, items: Tensor) -> Tensor:
+        if self.include_bias:
+            pred = self.user_biases(users) + self.item_biases(items)
+            pred += sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
+            return pred.squeeze()
+
+        pred = sum((self.user_factors(users) * self.item_factors(items)), dim=1, keepdim=True)
         return pred.squeeze()

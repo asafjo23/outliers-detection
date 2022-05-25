@@ -6,10 +6,7 @@ from torch.utils.data import Dataset
 
 class RatingsDataset(Dataset):
     def __init__(
-        self,
-        users_tensor: LongTensor,
-        items_tensor: LongTensor,
-        ratings_tensor: FloatTensor,
+        self, users_tensor: LongTensor, items_tensor: LongTensor, ratings_tensor: FloatTensor,
     ):
         self.users_tensor = users_tensor
         self.items_tensor = items_tensor
